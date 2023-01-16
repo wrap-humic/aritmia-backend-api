@@ -152,14 +152,30 @@ def classification(features):
 
 @app.route('/AI', methods=['GET'])
 def ensemblelearning():
-    data = data_dummy.data_dummy()
-    df = Feature_Extraction(data)
+    # data = data_dummy.data_dummy()
+    # df = Feature_Extraction(data)
+    df = pd.read_csv('DataArythmia Clean.csv')
     pred = classification(df)
     response = {"status": "ok", "data": pred, "message": "List of status"}
     return response
-
 # END: Machine Learning Model
 
 
+@app.route('/classify', methods=['POST'])
+def classify():
+    df = pd.DataFrame([{'ECG_R_Peaks': request.form['ecgrpeaks'],
+                        'ECG_P_Peaks': request.form['ecgppeaks'],
+                        'ECG_Q_Peaks': request.form['ecgqpeaks'],
+                        'ECG_S_Peaks': request.form['ecgspeaks'],
+                        'ECG_T_Peaks': request.form['ecgtpeaks'],
+                        'QRS': request.form['qrs'],
+                        'RR Interval': request.form['rrinterval'],
+                        }])
+    pred = classification(df)
+    print(df)
+    response = {"status": "ok", "data": pred[0], "message": "Classification"}
+    return response
+
+
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=5000)
+    app.run(host='0.0.0.0', port=5000)
