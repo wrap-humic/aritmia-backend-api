@@ -1,5 +1,7 @@
-from flask import Flask, render_template, url_for, request
+from flask import Flask, render_template, url_for, request, abort
 from flask_mqtt import Mqtt
+from flask_bcrypt import Bcrypt
+
 
 import pandas as pd
 import numpy as np
@@ -9,6 +11,10 @@ import neurokit2 as nk
 import math
 import pickle
 import data_dummy
+from helper.response_helper import response_helper
+
+from models import db
+from models.User import User
 
 
 app = Flask(__name__)
@@ -23,8 +29,14 @@ app.config['MQTT_KEEPALIVE'] = 5  # Set KeepAlive time in seconds
 # If your broker supports TLS, set it True
 app.config['MQTT_TLS_ENABLED'] = False
 topic = 'rhythm/ECG006/ecg'
-
 mqtt_client = Mqtt(app)
+
+# Database Config
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root@localhost/wrap'
+db.init_app(app)
+
+# bcrypt
+bcrypt = Bcrypt(app)
 
 
 @app.route('/')
@@ -175,6 +187,66 @@ def classify():
     print(df)
     response = {"status": "ok", "data": pred[0], "message": "Classification"}
     return response
+
+# Register
+
+
+@app.route('/api/register', methods=['POST'])
+def register():
+    if (request.method == 'POST'):
+        # get request data
+        email = request.form['email']
+        password = request.form['password']
+        nama_lengkap = request.form['nama_lengkap']
+
+        # Hash the password using bcrypt
+        hashed_password = bcrypt.generate_password_hash(
+            password).decode('utf-8')
+
+        # Check if email already exists in the database
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            return response_helper(status_code=400, message="Email sudah terpakai", data=None)
+
+        # create object user
+        new_user = User(email=email, password=hashed_password,
+                        nama_lengkap=nama_lengkap)
+
+        # validate,add user to the database, and show response
+        try:
+            db.session.add(new_user)
+            db.session.commit()
+            return response_helper(status_code=200, message="Berhasil menambahkan data user", data=new_user.to_dict())
+        except Exception as e:
+            return response_helper(
+                status_code=400, message=str(e), data=None)
+    else:
+        abort(404)
+
+# Login
+
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    if (request.method == 'POST'):
+        # get request data
+        email = request.form['email']
+        password = request.form['password']
+
+        # Check if email and password already exists in the database
+        try:
+            existing_user = User.query.filter_by(email=email).first()
+            if existing_user and bcrypt.check_password_hash(existing_user.password, password):
+                user = User(email=email, password=None,
+                            nama_lengkap=existing_user.nama_lengkap)
+                return response_helper(status_code=200, message="Berhasil Login", data=user.to_dict())
+            else:
+                return response_helper(status_code=400, message="Username / Password salah", data=existing_user.model_to_dict())
+        except Exception as e:
+            return response_helper(
+                status_code=400, message=str(e), data=None)
+    else:
+        abort(404)
 
 
 if __name__ == '__main__':
