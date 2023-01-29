@@ -302,7 +302,7 @@ def patient_by_id(id=None):
 @app.route('/api/upload_record', methods=['POST'])  # upload excell files
 def upload():
     if request.method == 'POST':
-        record_id_owner = request.form['record_owner']
+        record_id_owner = request.form['record_id_owner']
         record_owner = request.form['record_owner']
         record_date = request.form['record_date']
         is_success, file_name = handle_upload(
