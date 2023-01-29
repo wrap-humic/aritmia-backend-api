@@ -12,12 +12,17 @@ import math
 import pickle
 import data_dummy
 from helper.response_helper import response_helper
+from helper.upload_file_helper import handle_upload
 
 from models import db
 from models.User import User
+from models.Pasien import Pasien
 
 
 app = Flask(__name__)
+
+# Constant
+ALLOWED_EXTENSIONS = {'xls', 'xlsx'}
 
 app.config['MQTT_BROKER_URL'] = 'broker.hivemq.com'
 app.config['MQTT_BROKER_PORT'] = 1883
@@ -206,7 +211,7 @@ def register():
         # Check if email already exists in the database
         existing_user = User.query.filter_by(email=email).first()
         if existing_user:
-            return response_helper(status_code=400, message="Email sudah terpakai", data=None)
+            return response_helper(400, "Email sudah terpakai", None)
 
         # create object user
         new_user = User(email=email, password=hashed_password,
@@ -216,17 +221,14 @@ def register():
         try:
             db.session.add(new_user)
             db.session.commit()
-            return response_helper(status_code=200, message="Berhasil menambahkan data user", data=new_user.to_dict())
+            return response_helper(200, "Berhasil menambahkan data user", new_user.to_dict())
         except Exception as e:
-            return response_helper(
-                status_code=400, message=str(e), data=None)
+            return response_helper(400, str(e), None)
     else:
         abort(404)
 
-# Login
 
-
-@app.route('/api/login', methods=['POST'])
+@app.route('/api/login', methods=['POST'])  # Login
 def login():
     if (request.method == 'POST'):
         # get request data
@@ -239,14 +241,76 @@ def login():
             if existing_user and bcrypt.check_password_hash(existing_user.password, password):
                 user = User(email=email, password=None,
                             nama_lengkap=existing_user.nama_lengkap)
-                return response_helper(status_code=200, message="Berhasil Login", data=user.to_dict())
+                return response_helper(200, "Berhasil Login", user.to_dict())
             else:
-                return response_helper(status_code=400, message="Username / Password salah", data=existing_user.model_to_dict())
+                return response_helper(400, "Username / Password salah", existing_user.model_to_dict())
         except Exception as e:
-            return response_helper(
-                status_code=400, message=str(e), data=None)
+            return response_helper(400, str(e), None)
     else:
         abort(404)
+
+
+@app.route('/api/patient', methods=['POST', 'GET'])  # patient route
+def patient():
+    # add patient
+    if request.method == 'POST':
+        # get request data
+        nama = request.form['nama']
+        jenis_kelamin = request.form['jenis_kelamin']
+        umur = request.form['umur']
+        tanggal_lahir = request.form['tanggal_lahir']
+        kondisi_kesehatan = request.form['kondisi_kesehatan']
+
+        patient = Pasien(nama=nama, jenis_kelamin=jenis_kelamin, umur=umur,
+                         tanggal_lahir=tanggal_lahir, kondisi_kesehatan=kondisi_kesehatan)
+        # validate,add patient to the database, and show response
+        try:
+            db.session.add(patient)
+            db.session.commit()
+            return response_helper(200, "Berhasil menambahkan data pasien", patient.to_dict())
+        except Exception as e:
+            return response_helper(400, str(e), None)
+    # get all patient or get one patient only
+    if request.method == 'GET':
+        # get all patient
+        try:
+            patients = Pasien.query.all()
+            # get of every patient object
+            patients_list = [patient.to_dict() for patient in patients]
+            return response_helper(200, "Berhasil mendapatkan data list pasien", patients_list)
+        except Exception as e:
+            return response_helper(400, str(e), None)
+
+
+@app.route('/api/patient/<int:id>', methods=['GET'])  # patient by id
+def patient_by_id(id=None):
+    if request.method == 'GET':
+        if id is None:
+            response_helper(400, "Pasien tidak ditemukan", None)
+        else:
+            # filter patient by id
+            try:
+                patient = Pasien.query.filter_by(id=id).first()
+                if patient is None:
+                    response_helper(400, "Pasien tidak ditemukan", None)
+                else:
+                    return response_helper(200, "Berhasil mendapatkan data pasien", patient.to_dict())
+            except Exception as e:
+                return response_helper(400, str(e), None)
+
+
+@app.route('/api/upload_record', methods=['POST'])  # upload excell files
+def upload():
+    if request.method == 'POST':
+        record_id_owner = request.form['record_owner']
+        record_owner = request.form['record_owner']
+        record_date = request.form['record_date']
+        is_success, file_name = handle_upload(
+            record_id_owner, record_owner, record_date, request, ALLOWED_EXTENSIONS)
+        if is_success:
+            return response_helper(200, 'Berhasil menambahkan file', file_name)
+        else:
+            return response_helper(400, file_name, None)
 
 
 if __name__ == '__main__':
