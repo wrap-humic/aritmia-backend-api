@@ -17,6 +17,7 @@ from helper.upload_file_helper import handle_upload
 from models import db
 from models.User import User
 from models.Pasien import Pasien
+from models.Record import Record
 
 
 app = Flask(__name__)
@@ -305,12 +306,50 @@ def upload():
         record_id_owner = request.form['record_id_owner']
         record_owner = request.form['record_owner']
         record_date = request.form['record_date']
+
+        # add file to directory
         is_success, file_name = handle_upload(
             record_id_owner, record_owner, record_date, request, ALLOWED_EXTENSIONS)
-        if is_success:
-            return response_helper(200, 'Berhasil menambahkan file', file_name)
+
+        if (is_success):
+            # if success add file to directory add record data to database
+            record = Record(id_pasien=record_id_owner,
+                            path='data_user/'+file_name, tanggal_record=record_date)
+            try:
+                db.session.add(record)
+                db.session.commit()
+                return response_helper(200, 'Berhasil menambahkan file dan record', record.to_dict())
+            except Exception as e:
+                return response_helper(400, str(e), None)
         else:
             return response_helper(400, file_name, None)
+
+
+# get record statistics
+@app.route('/api/record_statistic/<int:id_pasien>', methods=['GET'])
+def record_statistic(id_pasien: None):
+    if request.method == 'GET':
+        if id is None:
+            response_helper(400, "Pasien tidak ditemukan", None)
+        else:
+            records = Record.query.filter_by(id_pasien=id_pasien)
+            if records is None:
+                response_helper(400, "Pasien tidak ditemukan", None)
+            else:
+                record_list = [record.to_dict() for record in records]
+                record_list_stat = []
+                for record in record_list:
+                    df = pd.read_csv(record['path'])
+                    pred = classification(df)
+                    stat = {'Normal': pred.count('Normal'), 'Left bundle branch block beat': pred.count('Left bundle branch block beat'),
+                            'Right bundle branch block beat': pred.count('Right bundle branch block beat'),
+                            'Atrial premature beat': pred.count('Atrial premature beat'),
+                            'Premature ventricular contraction': pred.count('Premature ventricular contraction')}
+
+                    record_stat = {**record, **stat}
+                    record_list_stat.append(record_stat)
+
+                return response_helper(200, 'Berhasil get list record statistik', record_list_stat)
 
 
 if __name__ == '__main__':
