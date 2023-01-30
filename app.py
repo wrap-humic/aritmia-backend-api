@@ -240,7 +240,7 @@ def login():
         try:
             existing_user = User.query.filter_by(email=email).first()
             if existing_user and bcrypt.check_password_hash(existing_user.password, password):
-                user = User(email=email, password=None,
+                user = User(email=email, password=None, id=existing_user.id,
                             nama_lengkap=existing_user.nama_lengkap)
                 return response_helper(200, "Berhasil Login", user.to_dict())
             else:
