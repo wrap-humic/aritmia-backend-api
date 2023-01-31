@@ -7,3 +7,4 @@ numpy==1.22.4
 pandas==1.4.2
 PyWavelets==1.4.1
 scipy==1.10.0
+Flask_Cors==3.0.10

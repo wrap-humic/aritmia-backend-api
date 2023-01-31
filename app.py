@@ -1,6 +1,7 @@
 from flask import Flask, render_template, url_for, request, abort
 from flask_mqtt import Mqtt
 from flask_bcrypt import Bcrypt
+from flask_cors import CORS
 
 
 import pandas as pd
@@ -21,6 +22,7 @@ from models.Record import Record
 
 
 app = Flask(__name__)
+CORS(app)
 
 # Constant
 ALLOWED_EXTENSIONS = {'xls', 'xlsx'}
